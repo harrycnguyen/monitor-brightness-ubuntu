@@ -36,7 +36,7 @@ monitor-brightness gui                  # tray icon + window with one slider per
 
 ### Tray icon
 
-`gui` puts an icon in the top bar. Click it to show or hide the slider window (clicking elsewhere hides it, like a popover). The quit button is in the window's header bar. Ubuntu's GNOME session ships the AppIndicator extension that shows the icon; if there is no tray host, the window just opens normally.
+`gui` puts an icon in the top bar. Click it to show or hide the slider window (clicking elsewhere hides it, like a popover). Its menu has "Show brightness controls" and "Quit". Ubuntu's GNOME session ships the AppIndicator extension that shows the icon; if there is no tray host, the window just opens normally.
 
 ```sh
 packaging/install-user.sh               # launcher + app-grid entry, in your home directory only

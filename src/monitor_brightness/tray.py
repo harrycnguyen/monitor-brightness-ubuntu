@@ -4,8 +4,10 @@ Ubuntu's GNOME session ships the AppIndicator extension, which shows these
 icons in the top bar. We talk D-Bus directly (through Gio) because the usual
 AppIndicator library is GTK3-only and can't live in a GTK4 process.
 
-The icon has no menu, so a click calls `Activate`; the app answers by toggling
-its window. Quitting is done from the window.
+GNOME's extension only shows items that have a real menu (it ignores the
+"/NO_DBUSMENU" convention), so we also serve a tiny com.canonical.dbusmenu menu:
+"Show brightness controls" and "Quit". A plain click on the icon still calls
+`Activate`, which toggles the window.
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ from typing import Callable
 from gi.repository import Gio, GLib
 
 ITEM_PATH = "/StatusNotifierItem"
+MENU_PATH = "/MenuBar"
 WATCHER = "org.kde.StatusNotifierWatcher"
 ICON = "display-brightness-symbolic"
 
@@ -47,6 +50,66 @@ _INTROSPECTION = """
 </node>
 """
 
+_MENU_INTROSPECTION = """
+<node>
+  <interface name="com.canonical.dbusmenu">
+    <method name="GetLayout">
+      <arg type="i" name="parentId" direction="in"/>
+      <arg type="i" name="recursionDepth" direction="in"/>
+      <arg type="as" name="propertyNames" direction="in"/>
+      <arg type="u" name="revision" direction="out"/>
+      <arg type="(ia{sv}av)" name="layout" direction="out"/>
+    </method>
+    <method name="GetGroupProperties">
+      <arg type="ai" name="ids" direction="in"/>
+      <arg type="as" name="propertyNames" direction="in"/>
+      <arg type="a(ia{sv})" name="properties" direction="out"/>
+    </method>
+    <method name="GetProperty">
+      <arg type="i" name="id" direction="in"/>
+      <arg type="s" name="name" direction="in"/>
+      <arg type="v" name="value" direction="out"/>
+    </method>
+    <method name="Event">
+      <arg type="i" name="id" direction="in"/>
+      <arg type="s" name="eventId" direction="in"/>
+      <arg type="v" name="data" direction="in"/>
+      <arg type="u" name="timestamp" direction="in"/>
+    </method>
+    <method name="EventGroup">
+      <arg type="a(isvu)" name="events" direction="in"/>
+      <arg type="ai" name="idErrors" direction="out"/>
+    </method>
+    <method name="AboutToShow">
+      <arg type="i" name="id" direction="in"/>
+      <arg type="b" name="needUpdate" direction="out"/>
+    </method>
+    <method name="AboutToShowGroup">
+      <arg type="ai" name="ids" direction="in"/>
+      <arg type="ai" name="updatesNeeded" direction="out"/>
+      <arg type="ai" name="idErrors" direction="out"/>
+    </method>
+    <signal name="LayoutUpdated"><arg type="u" name="revision"/><arg type="i" name="parent"/></signal>
+    <property name="Version" type="u" access="read"/>
+    <property name="TextDirection" type="s" access="read"/>
+    <property name="Status" type="s" access="read"/>
+    <property name="IconThemePath" type="as" access="read"/>
+  </interface>
+</node>
+"""
+
+MENU_SHOW, MENU_QUIT = 1, 2
+_MENU_ITEMS = {  # id -> dbusmenu properties
+    MENU_SHOW: {"label": "Show brightness controls"},
+    MENU_QUIT: {"label": "Quit"},
+}
+_MENU_ROOT = {"children-display": "submenu"}
+
+
+def _props(d: dict[str, str]) -> dict[str, GLib.Variant]:
+    return {k: GLib.Variant("s", v) for k, v in d.items()}
+
+
 _PROPERTIES = {
     "Category": lambda title: GLib.Variant("s", "Hardware"),
     "Id": lambda title: GLib.Variant("s", "monitor-brightness"),
@@ -62,15 +125,17 @@ _PROPERTIES = {
     "AttentionMovieName": lambda title: GLib.Variant("s", ""),
     "ToolTip": lambda title: GLib.Variant("(sa(iiay)ss)", ("", [], title, "")),
     "ItemIsMenu": lambda title: GLib.Variant("b", False),
-    # "No menu" convention, so shells deliver a click as Activate.
-    "Menu": lambda title: GLib.Variant("o", "/NO_DBUSMENU"),
+    "Menu": lambda title: GLib.Variant("o", MENU_PATH),
 }
 
 
 class Tray:
-    def __init__(self, on_activate: Callable[[], None], on_registered: Callable[[], None],
+    def __init__(self, on_activate: Callable[[], None], on_show: Callable[[], None],
+                 on_quit: Callable[[], None], on_registered: Callable[[], None],
                  title: str = "Monitor Brightness"):
         self._on_activate = on_activate
+        self._on_show = on_show
+        self._on_quit = on_quit
         self._on_registered = on_registered
         self._title = title
         self._conn: Gio.DBusConnection | None = None
@@ -85,6 +150,10 @@ class Tray:
             node = Gio.DBusNodeInfo.new_for_xml(_INTROSPECTION)
             self._conn.register_object(
                 ITEM_PATH, node.interfaces[0], self._method_call, self._get_property, None
+            )
+            menu = Gio.DBusNodeInfo.new_for_xml(_MENU_INTROSPECTION)
+            self._conn.register_object(
+                MENU_PATH, menu.interfaces[0], self._menu_method_call, self._menu_get_property, None
             )
         except GLib.Error:
             return  # no session bus: the app will just show its window instead
@@ -133,3 +202,54 @@ class Tray:
     def _get_property(self, conn, sender, path, interface, prop):
         make = _PROPERTIES.get(prop)
         return make(self._title) if make else None
+
+    # com.canonical.dbusmenu: a flat menu with two items, never changes.
+    def _layout(self, parent: int, depth: int):
+        if parent == 0:
+            children = []
+            if depth != 0:
+                children = [GLib.Variant("(ia{sv}av)", (i, _props(p), [])) for i, p in _MENU_ITEMS.items()]
+            return (0, _props(_MENU_ROOT), children)
+        return (parent, _props(_MENU_ITEMS.get(parent, {})), [])
+
+    def _menu_method_call(self, conn, sender, path, interface, method, params, invocation) -> None:
+        args = params.unpack()
+        if method == "GetLayout":
+            invocation.return_value(GLib.Variant("(u(ia{sv}av))", (1, self._layout(args[0], args[1]))))
+        elif method == "GetGroupProperties":
+            ids = args[0] or [0, *_MENU_ITEMS]
+            reply = [(i, _props(_MENU_ROOT if i == 0 else _MENU_ITEMS.get(i, {}))) for i in ids]
+            invocation.return_value(GLib.Variant("(a(ia{sv}))", (reply,)))
+        elif method == "GetProperty":
+            value = (_MENU_ROOT if args[0] == 0 else _MENU_ITEMS.get(args[0], {})).get(args[1], "")
+            invocation.return_value(GLib.Variant("(v)", (GLib.Variant("s", value),)))
+        elif method == "Event":
+            self._menu_event(args[0], args[1])
+            invocation.return_value(None)
+        elif method == "EventGroup":
+            for item_id, event, _data, _ts in args[0]:
+                self._menu_event(item_id, event)
+            invocation.return_value(GLib.Variant("(ai)", ([],)))
+        elif method == "AboutToShow":
+            invocation.return_value(GLib.Variant("(b)", (False,)))
+        elif method == "AboutToShowGroup":
+            invocation.return_value(GLib.Variant("(aiai)", ([], [])))
+        else:
+            invocation.return_dbus_error("org.freedesktop.DBus.Error.UnknownMethod", method)
+
+    def _menu_event(self, item_id: int, event: str) -> None:
+        if event != "clicked":
+            return
+        if item_id == MENU_SHOW:
+            self._on_show()
+        elif item_id == MENU_QUIT:
+            self._on_quit()
+
+    def _menu_get_property(self, conn, sender, path, interface, prop):
+        values = {
+            "Version": GLib.Variant("u", 3),
+            "TextDirection": GLib.Variant("s", "ltr"),
+            "Status": GLib.Variant("s", "normal"),
+            "IconThemePath": GLib.Variant("as", []),
+        }
+        return values.get(prop)

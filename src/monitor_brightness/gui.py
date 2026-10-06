@@ -163,7 +163,12 @@ class App(Adw.Application):
             return
         self.hold()  # stay alive in the tray while the window is hidden
         self._window = MainWindow(self)
-        self._tray = Tray(on_activate=self._window.toggle, on_registered=self._on_tray_registered)
+        self._tray = Tray(
+            on_activate=self._window.toggle,
+            on_show=self._window.show_window,
+            on_quit=self.quit,
+            on_registered=self._on_tray_registered,
+        )
         self._tray.start()
         if self._background:
             # Without a tray host (extension off, non-GNOME desktop) the app would be
