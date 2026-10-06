@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 
 SIZES = (22, 32, 48)
-_COLOR = (235, 235, 235)  # light grey: Ubuntu's top bar is dark
+_COLOR = (255, 255, 255)  # light grey: Ubuntu's top bar is dark
 _SS = 4  # samples per pixel side, for smooth edges
 
 
@@ -16,14 +16,14 @@ def _coverage(x: float, y: float, s: int) -> float:
         for j in range(_SS):
             dx = (x + (i + 0.5) / _SS) / s - 0.5
             dy = (y + (j + 0.5) / _SS) / s - 0.5
-            if math.hypot(dx, dy) <= 0.2:
+            if math.hypot(dx, dy) <= 0.21:
                 hit += 1
                 continue
             for k in range(8):
                 a = k * math.pi / 4
                 along = dx * math.cos(a) + dy * math.sin(a)
                 across = abs(-dx * math.sin(a) + dy * math.cos(a))
-                if 0.31 <= along <= 0.46 and across <= 0.04:
+                if 0.32 <= along <= 0.46 and across <= 0.06:
                     hit += 1
                     break
     return hit / (_SS * _SS)
