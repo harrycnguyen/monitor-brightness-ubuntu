@@ -23,10 +23,19 @@ fi
 mkdir -p "$(dirname "$BIN")" "$(dirname "$APPS")" "$(dirname "$ICON")"
 cp "$REPO/packaging/$APP_ID.svg" "$ICON"
 
-cat > "$BIN" <<LAUNCHER
+cat > "$BIN" <<'LAUNCHER'
 #!/bin/sh
-exec env PYTHONPATH="$REPO/src" python3 -m monitor_brightness "\$@"
+# Right after being added to the i2c group, a session doesn't have it until the next
+# login. Borrow it with sg so DDC works without logging out first.
+if [ -z "$MONITOR_BRIGHTNESS_SG" ] \
+    && ! id -nG | tr ' ' '\n' | grep -qx i2c \
+    && getent group i2c | cut -d: -f4 | tr ',' '\n' | grep -qx "$(id -un)"; then
+    export MONITOR_BRIGHTNESS_SG=1
+    exec sg i2c -c "\"$0\" $*"
+fi
+exec env PYTHONPATH="@REPO@/src" python3 -m monitor_brightness "$@"
 LAUNCHER
+sed -i "s#@REPO@#$REPO#" "$BIN"
 chmod +x "$BIN"
 
 entry() {

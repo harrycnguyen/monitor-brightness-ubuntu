@@ -40,9 +40,12 @@ monitor-brightness gui                  # tray icon + window with one slider per
 
 ```sh
 packaging/install-user.sh               # launcher + app-grid entry, in your home directory only
+                                        # (then start "Monitor Brightness" from Activities, no terminal needed)
 packaging/install-user.sh --autostart   # also start in the tray at login
 packaging/install-user.sh --uninstall
 ```
+
+The launcher borrows the `i2c` group with `sg` when your session doesn't have it yet, so external monitors work before you log out and back in. Only one copy runs at a time; starting it again just shows the running one's window. After updating the code, quit the old copy (`pkill -f monitor_brightness`) first.
 
 ## Tests
 
