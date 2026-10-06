@@ -22,9 +22,6 @@ from .writer import CoalescingWriter  # noqa: E402
 
 APP_ID = "io.github.harrycnguyen.MonitorBrightness"
 RELOAD_AFTER = 60  # seconds before reopening the window re-detects monitors
-# A click on the tray icon steals focus, which hides the window; the same click then
-# arrives as Activate. Ignore an Activate this soon after a hide so it doesn't reopen.
-REOPEN_GUARD = 0.4
 
 
 class MainWindow(Adw.ApplicationWindow):
@@ -33,8 +30,6 @@ class MainWindow(Adw.ApplicationWindow):
         self._writer = CoalescingWriter(on_error=self._write_failed)
         self._loading = False
         self._loaded_at = 0.0
-        self._was_active = False
-        self._hidden_at = 0.0
 
         header = Adw.HeaderBar()
         quit_button = Gtk.Button(icon_name="application-exit-symbolic", tooltip_text="Quit")
@@ -65,24 +60,12 @@ class MainWindow(Adw.ApplicationWindow):
         self.set_content(outer)
 
         self.connect("close-request", self._on_close_request)
-        self.connect("notify::is-active", self._on_active_changed)
         self.reload()
 
     # Showing and hiding: the app lives in the tray, so closing only hides.
-    def _hide(self) -> None:
-        self._hidden_at = time.monotonic()
-        self._was_active = False
-        self.set_visible(False)
-
     def _on_close_request(self, _window) -> bool:
-        self._hide()
+        self.set_visible(False)
         return True
-
-    def _on_active_changed(self, *_args) -> None:
-        if self.is_active():
-            self._was_active = True
-        elif self._was_active and self.get_visible():
-            self._hide()  # clicked elsewhere, like a popover
 
     def show_window(self) -> None:
         self.present()
@@ -91,8 +74,8 @@ class MainWindow(Adw.ApplicationWindow):
 
     def toggle(self) -> None:
         if self.get_visible():
-            self._hide()
-        elif time.monotonic() - self._hidden_at > REOPEN_GUARD:
+            self.set_visible(False)
+        else:
             self.show_window()
 
     # Detection and the first read are slow (DDC), so they run off the UI thread.
