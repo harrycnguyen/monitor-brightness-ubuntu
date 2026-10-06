@@ -144,6 +144,7 @@ class App(Adw.Application):
         if self._window is not None:  # launched again: bring the window up
             self._window.show_window()
             return
+        Gtk.Window.set_default_icon_name(APP_ID)
         self.hold()  # stay alive in the tray while the window is hidden
         self._window = MainWindow(self)
         self._tray = Tray(
