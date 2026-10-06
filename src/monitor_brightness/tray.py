@@ -18,12 +18,13 @@ from typing import Callable
 
 from gi.repository import Gio, GLib
 
+from . import icon
+
 log = logging.getLogger(__name__)
 
 ITEM_PATH = "/StatusNotifierItem"
 MENU_PATH = "/MenuBar"
 WATCHER = "org.kde.StatusNotifierWatcher"
-ICON = "display-brightness-symbolic"
 
 _INTROSPECTION = """
 <node>
@@ -119,8 +120,9 @@ _PROPERTIES = {
     "Title": lambda title: GLib.Variant("s", title),
     "Status": lambda title: GLib.Variant("s", "Active"),
     "WindowId": lambda title: GLib.Variant("u", 0),
-    "IconName": lambda title: GLib.Variant("s", ICON),
-    "IconPixmap": lambda title: GLib.Variant("a(iiay)", []),
+    # No theme name on purpose: a themed icon that is missing renders as nothing.
+    "IconName": lambda title: GLib.Variant("s", ""),
+    "IconPixmap": lambda title: GLib.Variant("a(iiay)", icon.pixmaps()),
     "OverlayIconName": lambda title: GLib.Variant("s", ""),
     "OverlayIconPixmap": lambda title: GLib.Variant("a(iiay)", []),
     "AttentionIconName": lambda title: GLib.Variant("s", ""),
