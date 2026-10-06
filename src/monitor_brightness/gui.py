@@ -40,10 +40,12 @@ class MainWindow(Adw.ApplicationWindow):
         box.append(self._notes)
         self._toasts.set_child(box)
 
-        view = Adw.ToolbarView()
-        view.add_top_bar(header)
-        view.set_content(self._toasts)
-        self.set_content(view)
+        # A plain Box instead of Adw.ToolbarView, which needs libadwaita 1.4 (Ubuntu 23.10+).
+        self._toasts.set_vexpand(True)
+        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        outer.append(header)
+        outer.append(self._toasts)
+        self.set_content(outer)
 
         threading.Thread(target=self._load, daemon=True).start()
 
