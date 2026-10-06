@@ -88,6 +88,10 @@ def cmd_doctor(_: argparse.Namespace) -> int:
 
 
 def cmd_gui(args: argparse.Namespace) -> int:
+    if args.debug:
+        import logging
+
+        logging.basicConfig(level=logging.DEBUG, format="%(asctime)s %(message)s")
     from . import gui
 
     return gui.run(background=args.background)
@@ -115,6 +119,7 @@ def build_parser() -> argparse.ArgumentParser:
     add("doctor", cmd_doctor, "check DDC/CI setup", display=False)
     sp = add("gui", cmd_gui, "run the tray app and open its window", display=False)
     sp.add_argument("--background", action="store_true", help="start in the tray without opening the window")
+    sp.add_argument("--debug", action="store_true", help="print tray/D-Bus activity to the terminal")
     return p
 
 

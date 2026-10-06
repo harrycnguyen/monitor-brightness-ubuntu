@@ -12,10 +12,13 @@ GNOME's extension only shows items that have a real menu (it ignores the
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Callable
 
 from gi.repository import Gio, GLib
+
+log = logging.getLogger(__name__)
 
 ITEM_PATH = "/StatusNotifierItem"
 MENU_PATH = "/MenuBar"
@@ -155,8 +158,10 @@ class Tray:
             self._conn.register_object(
                 MENU_PATH, menu.interfaces[0], self._menu_method_call, self._menu_get_property, None
             )
-        except GLib.Error:
+        except GLib.Error as e:
+            log.debug("tray: no session bus or registration failed: %s", e)
             return  # no session bus: the app will just show its window instead
+        log.debug("tray: serving %s and %s as %s", ITEM_PATH, MENU_PATH, self._name)
         Gio.bus_own_name_on_connection(
             self._conn, self._name, Gio.BusNameOwnerFlags.NONE, self._name_acquired, None
         )
@@ -165,14 +170,17 @@ class Tray:
         )
 
     def _name_acquired(self, conn, name) -> None:
+        log.debug("tray: acquired bus name %s", name)
         self._have_name = True
         self._register()
 
     def _watcher_appeared(self, conn, name, owner) -> None:
+        log.debug("tray: StatusNotifierWatcher is on the bus (%s)", owner)
         self._watcher_up = True
         self._register()
 
     def _watcher_vanished(self, conn, name) -> None:
+        log.debug("tray: no StatusNotifierWatcher on the bus")
         # Panel/extension restarted: register again when it comes back.
         self._watcher_up = False
         self._registered = False
@@ -189,18 +197,22 @@ class Tray:
     def _register_done(self, conn, result) -> None:
         try:
             conn.call_finish(result)
-        except GLib.Error:
+        except GLib.Error as e:
+            log.debug("tray: RegisterStatusNotifierItem failed: %s", e)
             self._registered = False
             return
+        log.debug("tray: registered with the watcher")
         self._on_registered()
 
     def _method_call(self, conn, sender, path, interface, method, params, invocation) -> None:
+        log.debug("tray: item method %s", method)
         if method in ("Activate", "SecondaryActivate"):
             self._on_activate()
         invocation.return_value(None)
 
     def _get_property(self, conn, sender, path, interface, prop):
         make = _PROPERTIES.get(prop)
+        log.debug("tray: item property %s", prop)
         return make(self._title) if make else None
 
     # com.canonical.dbusmenu: a flat menu with two items, never changes.
@@ -214,6 +226,7 @@ class Tray:
 
     def _menu_method_call(self, conn, sender, path, interface, method, params, invocation) -> None:
         args = params.unpack()
+        log.debug("tray: menu method %s%s", method, args)
         if method == "GetLayout":
             invocation.return_value(GLib.Variant("(u(ia{sv}av))", (1, self._layout(args[0], args[1]))))
         elif method == "GetGroupProperties":
