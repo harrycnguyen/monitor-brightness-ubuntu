@@ -16,6 +16,7 @@ class DdcInfo:
     number: int
     name: str
     drm_connector: str | None  # e.g. "card1-DP-2"
+    bus: int | None = None  # N of /dev/i2c-N
 
 
 def parse_detect(text: str) -> list[DdcInfo]:
@@ -36,11 +37,13 @@ def parse_detect(text: str) -> list[DdcInfo]:
         body = "\n".join(block[1:])
         model = re.search(r"^\s*Model:\s*(.+?)\s*$", body, re.M)
         drm = re.search(r"^\s*DRM[_ ]connector:\s*(\S+)", body, re.M)
+        bus = re.search(r"^\s*I2C bus:\s*/dev/i2c-(\d+)", body, re.M)
         found.append(
             DdcInfo(
                 number=number,
                 name=model.group(1) if model and model.group(1) else f"Display {number}",
                 drm_connector=drm.group(1) if drm else None,
+                bus=int(bus.group(1)) if bus else None,
             )
         )
     return found
@@ -71,7 +74,10 @@ class DdcDisplay(Display):
         self._max: int | None = None
 
     def _run(self, args: list[str]) -> proc.Result:
-        result = proc.run(["ddcutil", *args, "--display", str(self.info.number)])
+        # --bus talks to the monitor directly; --display makes ddcutil re-detect
+        # every monitor first, which costs about a second per call.
+        target = ["--bus", str(self.info.bus)] if self.info.bus is not None else ["--display", str(self.info.number)]
+        result = proc.run(["ddcutil", *args, *target])
         if result.returncode != 0:
             raise BrightnessError(result.stderr.strip() or result.stdout.strip() or "ddcutil failed")
         return result

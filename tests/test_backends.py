@@ -62,8 +62,8 @@ def fake_run(stdout="", returncode=0, stderr=""):
 class DdcTests(unittest.TestCase):
     def test_parse_detect_skips_invalid(self):
         infos = ddc.parse_detect(DETECT)
-        self.assertEqual([(i.number, i.name, i.drm_connector) for i in infos],
-                         [(1, "DELL U2720Q", "card1-DP-2"), (2, "LG ULTRAGEAR", "card1-HDMI-A-2")])
+        self.assertEqual([(i.number, i.name, i.drm_connector, i.bus) for i in infos],
+                         [(1, "DELL U2720Q", "card1-DP-2", 5), (2, "LG ULTRAGEAR", "card1-HDMI-A-2", 7)])
 
     def test_parse_getvcp(self):
         self.assertEqual(ddc.parse_getvcp("VCP 10 C 45 100\n"), (45, 100))
@@ -78,6 +78,13 @@ class DdcTests(unittest.TestCase):
         with mock.patch.object(proc, "run", run):
             d.set_percent(100)
         self.assertEqual(run.calls[0], ["ddcutil", "setvcp", "10", "60", "--noverify", "--display", "1"])
+
+    def test_uses_bus_when_known(self):
+        d = ddc.DdcDisplay(ddc.DdcInfo(1, "M", None, bus=5))
+        run = fake_run("VCP 10 C 30 60\n")
+        with mock.patch.object(proc, "run", run):
+            d.get_percent()
+        self.assertEqual(run.calls[0], ["ddcutil", "getvcp", "10", "--brief", "--bus", "5"])
 
     def test_failure_raises(self):
         d = ddc.DdcDisplay(ddc.DdcInfo(1, "M", None))
