@@ -87,10 +87,10 @@ def cmd_doctor(_: argparse.Namespace) -> int:
     return 1 if problems else 0
 
 
-def cmd_gui(_: argparse.Namespace) -> int:
+def cmd_gui(args: argparse.Namespace) -> int:
     from . import gui
 
-    return gui.run()
+    return gui.run(background=args.background)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -113,7 +113,8 @@ def build_parser() -> argparse.ArgumentParser:
         sp = add(name, _step(sign), f"{name} by N percent (default 10)")
         sp.add_argument("amount", nargs="?", type=int, default=10)
     add("doctor", cmd_doctor, "check DDC/CI setup", display=False)
-    add("gui", cmd_gui, "open the brightness window", display=False)
+    sp = add("gui", cmd_gui, "run the tray app and open its window", display=False)
+    sp.add_argument("--background", action="store_true", help="start in the tray without opening the window")
     return p
 
 

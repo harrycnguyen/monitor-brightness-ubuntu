@@ -31,7 +31,17 @@ monitor-brightness list                 # index, id, current %, name
 monitor-brightness set 40               # all displays
 monitor-brightness set 70 -d 2          # by index, id (ddc:1) or part of the name (dell)
 monitor-brightness up 10 / down 10      # bind these to GNOME keyboard shortcuts
-monitor-brightness gui                  # one slider per display
+monitor-brightness gui                  # tray icon + window with one slider per display
+```
+
+### Tray icon
+
+`gui` puts an icon in the top bar. Click it to show or hide the slider window (clicking elsewhere hides it, like a popover). The quit button is in the window's header bar. Ubuntu's GNOME session ships the AppIndicator extension that shows the icon; if there is no tray host, the window just opens normally.
+
+```sh
+packaging/install-user.sh               # launcher + app-grid entry, in your home directory only
+packaging/install-user.sh --autostart   # also start in the tray at login
+packaging/install-user.sh --uninstall
 ```
 
 ## Tests
