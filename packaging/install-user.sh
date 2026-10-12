@@ -1,6 +1,8 @@
 #!/bin/sh
 # Install for the current user only (nothing is written outside $HOME):
-#   - ~/.local/bin/monitor-brightness           launcher that runs this checkout
+#   - ~/.local/share/monitor-brightness/src     a copy of the code (so moving or deleting
+#                                               this checkout later doesn't break the app)
+#   - ~/.local/bin/monitor-brightness           launcher that runs that copy
 #   - an app-grid entry named "Monitor Brightness" with its icon (this is also what
 #     GNOME shows in the top-left corner while the app runs, instead of the raw app id)
 #   - with --autostart, start in the tray at login
@@ -9,18 +11,23 @@ set -e
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 APP_ID=io.github.harrycnguyen.MonitorBrightness
+PREFIX="$HOME/.local/share/monitor-brightness"
 BIN="$HOME/.local/bin/monitor-brightness"
 APPS="$HOME/.local/share/applications/$APP_ID.desktop"
 AUTOSTART="$HOME/.config/autostart/$APP_ID.desktop"
 ICON="$HOME/.local/share/icons/hicolor/scalable/apps/$APP_ID.svg"
 
 if [ "$1" = "--uninstall" ]; then
+    rm -rf "$PREFIX"
     rm -f "$BIN" "$APPS" "$AUTOSTART" "$ICON"
     echo "Removed."
     exit 0
 fi
 
-mkdir -p "$(dirname "$BIN")" "$(dirname "$APPS")" "$(dirname "$ICON")"
+mkdir -p "$(dirname "$BIN")" "$(dirname "$APPS")" "$(dirname "$ICON")" "$PREFIX"
+rm -rf "$PREFIX/src"
+cp -r "$REPO/src" "$PREFIX/src"
+find "$PREFIX/src" -name __pycache__ -prune -exec rm -rf {} +
 cp "$REPO/packaging/$APP_ID.svg" "$ICON"
 
 cat > "$BIN" <<'LAUNCHER'
@@ -33,9 +40,9 @@ if [ -z "$MONITOR_BRIGHTNESS_SG" ] \
     export MONITOR_BRIGHTNESS_SG=1
     exec sg i2c -c "\"$0\" $*"
 fi
-exec env PYTHONPATH="@REPO@/src" python3 -m monitor_brightness "$@"
+exec env PYTHONPATH="@PREFIX@/src" python3 -m monitor_brightness "$@"
 LAUNCHER
-sed -i "s#@REPO@#$REPO#" "$BIN"
+sed -i "s#@PREFIX@#$PREFIX#" "$BIN"
 chmod +x "$BIN"
 
 entry() {
@@ -52,7 +59,8 @@ DESKTOP
 }
 
 entry "" > "$APPS"
-echo "Installed launcher: $BIN and the app-grid entry."
+echo "Installed: $BIN, a copy of the code in $PREFIX, and the app-grid entry."
+echo "After updating this checkout (git pull), run this script again to update the installed copy."
 
 if [ "$1" = "--autostart" ]; then
     mkdir -p "$(dirname "$AUTOSTART")"

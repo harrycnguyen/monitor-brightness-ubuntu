@@ -31,19 +31,19 @@ Tried so far on one Ubuntu GNOME (Wayland) laptop with its built-in screen and o
 
 3. Start **Monitor Brightness** from Activities (or log out and in once if you used `--autostart`). A sun icon appears in the top bar; click it to show or hide the sliders.
 
-Don't move or delete the cloned folder: the launcher runs the code from there. To remove everything: `packaging/install-user.sh --uninstall`.
+The installer copies the code to `~/.local/share/monitor-brightness`, so the cloned folder can be moved or deleted afterwards. To update, `git pull` and run `packaging/install-user.sh` again. To remove everything: `packaging/install-user.sh --uninstall`.
 
 ### Tray icon
 
 - Click the icon to show or hide the window. Closing the window keeps the app in the tray.
 - The icon's menu has "Show brightness controls" and "Quit".
 - Ubuntu's GNOME session ships the AppIndicator extension that displays the icon. Without a tray host (extension off, other desktops) the window just opens normally.
-- Only one copy runs at a time; starting it again shows the running one's window. After updating the code, quit the old copy first (`pkill -f monitor_brightness`), or you will keep seeing the old behaviour.
+- Only one copy runs at a time; starting it again shows the running one's window. After updating (re-running the installer), quit the old copy first (`pkill -f monitor_brightness`), or you will keep seeing the old behaviour.
 - The launcher borrows the `i2c` group with `sg` when your session doesn't have it yet, so external monitors work before you log out and back in.
 
 ## Command line
 
-The launcher installs a `monitor-brightness` command (in `~/.local/bin`). Without installing, run `PYTHONPATH=src python3 -m monitor_brightness ...` from the repo.
+The installer adds a `monitor-brightness` command in `~/.local/bin`. Without installing, run `PYTHONPATH=src python3 -m monitor_brightness ...` from the repo.
 
 ```sh
 monitor-brightness doctor               # checks ddcutil, i2c-dev and permissions, says how to fix
